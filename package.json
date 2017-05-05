@@ -1,0 +1,19 @@
+{
+  "name": "Telegram-bot-3",
+  "version": "1.0.0",
+  "description": "A simple Node.js Telegram bot",
+  "engines": {
+    "node": "6.10.2",
+    "npm": "3.10.9"
+  },
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "telebot": "1.0.7",
+    "mysql": "2.13.0",
+    "request": "2.81.0"
+  },
+  "license": "MIT"
+}

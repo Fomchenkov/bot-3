@@ -10,8 +10,8 @@ const TOKEN = "340446177:AAH9wsRsNeBZhfRn3oOVBheHEt8AOcddetw";
 const bot = new telebot(TOKEN);
 
 const dbhost = "localhost";
-const dbuser = "root";
-const dbpass = "";
+const dbuser = "slava";
+const dbpass = "foma";
 const dbname = "telegrambot3";
 const dbport = 3306;
 
