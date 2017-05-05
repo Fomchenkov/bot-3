@@ -20,6 +20,7 @@ const users_steps = "users_steps.json";
 const dirForUsers = "DataBase";
 const stepsTable = "users_steps";
 const userDataTablePrefix = "_user_";
+const adminAnswersTablePrefix = "_answers_";
 
 
 /**
@@ -82,6 +83,7 @@ function getUserStep(userid) {
 			if (err) throw err;
 			json = JSON.parse(data);
 			let step = json[userid];
+			if (! step) step = "0";
 			resolve(step);
 		});
 	});
@@ -205,9 +207,10 @@ bot.on("/start", msg => {
 	connection.connect();
 	try { fs.mkdirSync(`${dirForUsers}/${msg.from.username}`); }
 	catch (e) {}
-	// Создать таблицу для пользователя, если требуется
+
+	// Создать таблицу для ответов админа пользователю
 	let sql = `CREATE TABLE IF NOT EXISTS 
-		${userDataTablePrefix}${msg.from.id} (
+		${adminAnswersTablePrefix}${msg.from.id} (
 		ID int NOT NULL AUTO_INCREMENT,
 		question TEXT NOT NULL,
 		answer TEXT NOT NULL,
@@ -215,17 +218,28 @@ bot.on("/start", msg => {
 	connection.query(sql, (err, res) => {
 		if (err) throw err;
 
-		// Path для вывода
-		let step = "0";
-		setUserStep(msg.from.id, step).then(() => {
-			let str = getKeyboardTextAsString(step);
-			let markup = buildKeyboard(str);
-			let text = "Выберите раздел";
-			bot.sendMessage(msg.from.id, text, { markup });
+		// Создать таблицу для пользователя, если требуется
+		sql = `CREATE TABLE IF NOT EXISTS 
+			${userDataTablePrefix}${msg.from.id} (
+			ID int NOT NULL AUTO_INCREMENT,
+			question TEXT NOT NULL,
+			answer TEXT NOT NULL,
+			PRIMARY KEY (ID))`;
+		connection.query(sql, (err, res) => {
+			if (err) throw err;
 
-			delete inProcess[msg.from.id];
-			console.log(inProcess);
-			connection.end();
+			// Path для вывода
+			let step = "0";
+			setUserStep(msg.from.id, step).then(() => {
+				let str = getKeyboardTextAsString(step);
+				let markup = buildKeyboard(str);
+				let text = "Выберите раздел";
+				bot.sendMessage(msg.from.id, text, { markup });
+
+				delete inProcess[msg.from.id];
+				console.log(inProcess);
+				connection.end();
+			});
 		});
 	});
 });
@@ -238,14 +252,35 @@ bot.on("text", msg => {
 
 	getUserStep(msg.from.id).then(step => {
 		// Проверка на "Мои ответы"
-		if (step == 0 && msg.text == "3. Ответы на мои вопросы") {
+		if (step == "0" && msg.text == "3. Ответы на мои вопросы") {
+			if (inProcess[msg.from.id]) { 
+				console.log("Access closed", inProcess); return; } 
+			else { inProcess[msg.from.id] = "ok"; console.log(inProcess); }
 
-			// Загрузить из базы данных ответы и вывести их
-			console.log("3. Ответы на мои вопросы");
-			let text = "Ответов на ваши вопросы нет.";
-			text += "\nЧто бы перейти в главное меню, отправьте /start";
-			bot.sendMessage(msg.from.id, text);
-
+			const connection = mysql.createConnection({
+				host: dbhost, user: dbuser,password: dbpass, 
+				database: dbname, port: dbport
+			});
+			connection.connect();
+			let sql = `SELECT * FROM ${adminAnswersTablePrefix}${msg.from.id}`;
+			connection.query(sql, (err, res) => {
+				if (err) throw err;
+				// Отправить выбранные сообщения
+				let text = "";
+				for (let i = 0; i < res.length; i++) {
+					text += "*Ваш вопрос*\n" + res[i].question + "\n";
+					text += "*Ответ админа*\n" + res[i].answer;
+					text += "\n\n";
+				}
+				if (! text) {
+					text = "Ответов на ваши вопросы нет.";
+					text += "\nЧто бы перейти в главное меню, отправьте /start";
+				}
+				bot.sendMessage(msg.from.id, text, { parse: "Markdown"});
+				delete inProcess[msg.from.id];
+				console.log(inProcess);
+				connection.end();
+			});
 		} else {
 			let arr = findQuestionsArray(step);
 			console.log("Current array is:", arr);
@@ -412,6 +447,8 @@ bot.on("photo", msg => {
 
 // При первом развертывании создаем папку для пользователей
 try { fs.mkdirSync("./" + dirForUsers); } 
+catch (e) {}
+try { fs.writeFileSync(users_steps, "{}"); }
 catch (e) {}
 
 bot.connect();
